@@ -1,0 +1,302 @@
+/* ==================== 전체 레이아웃 ==================== */
+/* 전체 폰트 크기 */
+html, body, [class*="css"] {
+    font-size: 2.5rem;
+}
+
+/* 메인 컨텐츠 영역 */
+.main {
+    padding: 2rem 3rem;
+}
+
+/* ==================== 제목 및 헤더 ==================== */
+/* 메인 타이틀 */
+h1 {
+    font-size: 3rem !important;
+    font-weight: 700 !important;
+    color: #1f2937 !important;
+    margin-bottom: 2rem !important;
+}
+
+/* 섹션 제목 (1️⃣, 2️⃣ 등) */
+h2 {
+    font-size: 2.5rem !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+    margin-top: 2rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* 하위 제목 (#### 마크다운) */
+h4 {
+    font-size: 1.8rem !important;
+    font-weight: 600 !important;
+    color: #4b5563 !important;
+    margin-top: 1.5rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* ==================== 사이드바 ==================== */
+/* 사이드바 전체 */
+section[data-testid="stSidebar"] {
+    background-color: #f9fafb;
+    padding: 2rem 1rem;
+}
+
+/* 사이드바 제목 */
+section[data-testid="stSidebar"] h2 {
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    color: #1f2937 !important;
+}
+
+/* 사이드바 라벨 */
+section[data-testid="stSidebar"] label {
+    font-size: 1.5rem !important;
+    font-weight: 500 !important;
+    color: #374151 !important;
+}
+
+/* ==================== 테이블 스타일 ==================== */
+/* 테이블 전체 */
+.stDataFrame {
+    font-size: 2.5rem !important;
+}
+
+/* 테이블 헤더 */
+.stDataFrame thead th {
+    background-color: #3b82f6 !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 1.5rem !important;
+    padding: 20px 24px !important;
+    text-align: center !important;
+    border: none !important;
+}
+
+/* 테이블 셀 */
+.stDataFrame tbody td {
+    font-size: 3.5rem !important;
+    padding: 20px 30px !important;
+    text-align: center !important;
+    border-bottom: 1px solid #e5e7eb !important;
+}
+
+/* 테이블 첫 번째 열 (보통 라벨) */
+.stDataFrame tbody td:first-child {
+    text-align: left !important;
+    font-weight: 500 !important;
+}
+
+/* ==================== HTML 테이블 스타일 (비교표) ==================== */
+/* HTML 테이블 전체 */
+table {
+    font-size: 2.5rem !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+/* HTML 테이블 헤더 */
+table thead th {
+    background-color: #3b82f6 !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 1.5rem !important;
+    padding: 20px !important;
+    text-align: center !important;
+    border: 1px solid #ddd !important;
+}
+
+/* HTML 테이블 셀 */
+table tbody td {
+    font-size: 3.5rem !important;
+    padding: 30px !important;
+    text-align: center !important;
+    border: 1px solid #ddd !important;
+    font-weight: 600 !important;
+}
+
+/* 테이블 호버 효과 */
+.stDataFrame tbody tr:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* ==================== 버튼 스타일 ==================== */
+/* 기본 버튼 */
+.stButton > button {
+    background-color: #3b82f6 !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    padding: 0.6rem 1.5rem !important;
+    border-radius: 0.5rem !important;
+    border: none !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton > button:hover {
+    background-color: #2563eb !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 다운로드 버튼 */
+.stDownloadButton > button {
+    background-color: #10b981 !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 1.5rem !important;
+    padding: 0.6rem 1.5rem !important;
+    border-radius: 0.5rem !important;
+}
+
+.stDownloadButton > button:hover {
+    background-color: #059669 !important;
+}
+
+/* ==================== 입력 필드 ==================== */
+/* 셀렉트박스 */
+.stSelectbox > div > div {
+    font-size: 1rem !important;
+    padding: 0.5rem !important;
+    border-radius: 0.5rem !important;
+}
+
+/* 멀티셀렉트 */
+.stMultiSelect > div > div {
+    font-size: 1rem !important;
+}
+
+.stMultiSelect span {
+    font-size: 1rem !important;
+}
+
+/* ==================== 알림 및 메시지 ==================== */
+/* Info 박스 */
+.stAlert[data-baseweb="notification"],
+.stAlert[data-baseweb="notification"] > div,
+.stAlert[data-baseweb="notification"] p,
+.stAlert[data-baseweb="notification"] div {
+    font-size: 2.5rem !important;
+}
+
+.stAlert[data-baseweb="notification"] {
+    padding: 2rem 2.5rem !important;
+    border-radius: 1.5rem !important;
+}
+
+/* Warning 박스 */
+.stWarning {
+    font-size: 1.5rem !important;
+}
+
+/* Success 박스 */
+.stSuccess {
+    font-size: 1.5rem !important;
+}
+
+/* Error 박스 */
+.stError {
+    font-size: 1.5rem !important;
+}
+
+/* ==================== 탭 스타일 ==================== */
+/* 탭 버튼 */
+.stTabs [data-baseweb="tab-list"] button {
+    font-size: 2.5rem !important;
+    font-weight: 600 !important;
+    padding: 0.8rem 1.5rem !important;
+}
+
+.stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+    color: #3b82f6 !important;
+    border-bottom: 3px solid #3b82f6 !important;
+}
+
+/* ==================== 차트 컨테이너 ==================== */
+/* 차트 영역 */
+.js-plotly-plot {
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* ==================== 구분선 ==================== */
+/* 구분선 스타일 */
+hr {
+    margin: 2rem 0 !important;
+    border: none !important;
+    border-top: 5px solid #e5e7eb !important;
+}
+
+/* ==================== 마크다운 텍스트 ==================== */
+/* 일반 텍스트 */
+.stMarkdown p {
+    font-size: 3.5rem !important;
+    line-height: 1.6 !important;
+    color: #374151 !important;
+}
+
+/* 강조 텍스트 */
+.stMarkdown strong {
+    font-weight: 600 !important;
+    color: #1f2937 !important;
+}
+
+/* ==================== 파일 업로더 ==================== */
+/* 파일 업로더 */
+.stFileUploader,
+.stFileUploader > div,
+.stFileUploader div,
+.stFileUploader label,
+.stFileUploader button,
+.stFileUploader span,
+.stFileUploader p {
+    font-size: 1rem !important;
+}
+
+.stFileUploader label {
+    font-weight: 500 !important;
+}
+
+/* ==================== 푸터 ==================== */
+/* 하단 캡션 */
+.caption,
+[data-testid="stCaptionContainer"],
+.stCaptionContainer,
+.element-container .stMarkdown small,
+small,
+div[data-testid="stCaptionContainer"] p,
+.element-container div[data-testid="stCaptionContainer"],
+[class*="stCaption"] {
+    font-size: 1rem !important;
+    color: #6b7280 !important;
+    text-align: center !important;
+    margin-top: 2rem !important;
+}
+
+/* ==================== 반응형 디자인 ==================== */
+/* 모바일 화면 */
+@media (max-width: 768px) {
+    html, body, [class*="css"] {
+        font-size: 14px;
+    }
+
+    h1 {
+        font-size: 2rem !important;
+    }
+
+    h2 {
+        font-size: 1.5rem !important;
+    }
+
+    .main {
+        padding: 1rem;
+    }
+}
+
+/* ==================== 커스텀 클래스 (필요시 추가) ==================== */
+/* 예: 특정 표에만 적용할 스타일 */
+.custom-table {
+    border: 2px solid #3b82f6;
+    border-radius: 0.5rem;
+}

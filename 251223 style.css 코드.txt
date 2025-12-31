@@ -1,0 +1,562 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
+import numpy as np
+
+# ==================== 설정 ====================
+st.set_page_config(page_title="매출 대시보드", layout="wide")
+
+# CSS 파일 로드
+def load_css(file_path):
+    with open(file_path, encoding='utf-8') as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+try:
+    load_css('style.css')
+except FileNotFoundError:
+    pass  # CSS 파일이 없어도 계속 실행
+
+st.title("📊 매출그래프")
+
+# 세션 초기화
+if 'df_original' not in st.session_state:
+    st.session_state.df_original = None
+    st.session_state.file_name = None
+
+# ==================== 파일 업로드 ====================
+st.sidebar.markdown("---")
+st.sidebar.subheader("📁 파일 업로드")
+uploaded_file = st.sidebar.file_uploader(
+    "엑셀 또는 CSV 파일",
+    type=['xlsx', 'xls', 'csv']
+)
+
+# 파일 로드
+if uploaded_file and st.session_state.file_name != uploaded_file.name:
+    try:
+        st.session_state.df_original = pd.read_csv(uploaded_file, encoding='utf-8-sig') if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+        st.session_state.file_name = uploaded_file.name  # 파일명 저장
+
+    except Exception as e:
+        st.sidebar.error(f"❌ {e}")
+        st.stop()
+elif st.session_state.file_name:
+    st.sidebar.info(f"📂 {st.session_state.file_name}")
+
+if st.session_state.df_original is None:
+    st.warning("⚠️ 파일을 업로드해주세요.")
+    st.stop()
+
+df = st.session_state.df_original.copy()
+
+# ==================== 컬럼 매핑 ====================
+def auto_map_columns(dataframe):
+    """컬럼 자동 매핑"""
+    mapping = {}
+    keywords = {
+        '연도': ['연도', 'year', '년'],
+        '월': ['월', 'month'],
+        '구분': ['구분'],
+        '수익코드': ['수익코드', 'revenue'],
+        '사업부': ['사업부', 'division'],
+        '브랜드': ['브랜드', 'brand'],
+        '캠퍼스': ['캠퍼스', '지역', 'campus', 'region']
+    }
+    
+    for col in dataframe.columns:
+        col_lower = str(col).lower().strip()
+        for key, kws in keywords.items():
+            if any(kw in col_lower for kw in kws):
+                if key == '구분' and '구분' != col_lower:
+                    continue
+                mapping[key] = col
+                break
+    
+    # 매출 컬럼 찾기
+    for col in dataframe.columns:
+        col_lower = str(col).lower()
+        if '매출' in col_lower or 'sales' in col_lower:
+            if '매출2' in col_lower or 'sales2' in col_lower:
+                mapping['매출2'] = col
+            elif '매출' not in mapping:
+                mapping['매출'] = col
+    
+    return mapping
+
+col_mapping = auto_map_columns(df)
+
+if '매출' not in col_mapping:
+    st.error("❌ 매출 컬럼 없음")
+    st.stop()
+
+# ==================== 데이터 전처리 ====================
+def clean_numeric_column(series):
+    """숫자 컬럼 정리"""
+    if series.dtype == 'object':
+        series = series.apply(
+            lambda x: str(x).replace(',', '').replace('원', '').strip()
+            if pd.notna(x) and str(x).strip() not in ['-', ''] else None
+        )
+    return pd.to_numeric(series, errors='coerce')
+
+# 매출 컬럼 정리
+df[col_mapping['매출']] = clean_numeric_column(df[col_mapping['매출']])
+if '매출2' in col_mapping:
+    df[col_mapping['매출2']] = clean_numeric_column(df[col_mapping['매출2']])
+
+# 연도 처리
+if '연도' not in col_mapping:
+    st.error("❌ 연도 컬럼 없음")
+    st.stop()
+
+df['연도_처리'] = df[col_mapping['연도']].apply(
+    lambda x: int(x) + 2000 if pd.notna(x) and int(x) < 100 else int(x) if pd.notna(x) else None
+)
+
+# NaN 제거
+df_clean = df[df[col_mapping['매출']].notna()].copy()
+sales_col = col_mapping.get('매출2') or col_mapping['매출']
+
+# ==================== 필터 함수 ====================
+def apply_filters(data, year=None, month=None, up_to_month=False, **kwargs):
+    """필터 적용"""
+    result = data.copy()
+    
+    if year is not None:
+        result = result[result['연도_처리'] == year]
+    
+    if month is not None:
+        result = result[result[col_mapping['월']] <= month] if up_to_month else result[result[col_mapping['월']] == month]
+    
+    # 선택적 필터
+    for key, values in kwargs.items():
+        if values and len(values) > 0 and key in col_mapping:
+            result = result[result[col_mapping[key]].isin(values)]
+    
+    return result
+
+# ==================== 사이드바 필터 ====================
+years = sorted([y for y in df_clean['연도_처리'].unique() if pd.notna(y)])
+months = sorted([m for m in df_clean[col_mapping['월']].unique() if pd.notna(m)])
+
+st.sidebar.header("📅 기간 선택")
+
+# 연도 선택 (multiselect로 변경, 단일 선택만 허용)
+selected_years = st.sidebar.multiselect(
+    "📅 연도",
+    years,
+    default=[years[-1]] if years else [],
+    help="연도를 선택하세요"
+)
+selected_year = selected_years[0] if selected_years else (years[-1] if years else None)
+
+# 월 선택 (multiselect로 변경, 단일 선택만 허용)
+selected_months = st.sidebar.multiselect(
+    "📆 월",
+    months,
+    default=[months[-1]] if months else [],
+    help="월을 선택하세요"
+)
+selected_month = selected_months[0] if selected_months else (months[-1] if months else None)
+
+st.sidebar.divider()
+st.sidebar.header("📅 비교 기간 선택")
+
+comparison_years = st.sidebar.multiselect(
+    "📅 비교 연도",
+    years,
+    default=[y for y in years if y != selected_year][:2] if len(years) > 1 else [],
+    help="비교할 연도를 선택하세요"
+)
+
+comparison_months = st.sidebar.multiselect(
+    "📆 비교 월",
+    months,
+    default=[selected_month],
+    help="비교할 월을 선택하세요"
+)
+
+if not comparison_years and len(years) > 0:
+    # 비교 연도가 선택되지 않은 경우, 선택 연도를 제외한 첫 번째 연도를 기본값으로
+    other_years = [y for y in years if y != selected_year]
+    if other_years:
+        comparison_years = [other_years[0]]
+
+st.sidebar.divider()
+st.sidebar.header("🔍 추가 필터")
+
+# 동적 필터 생성
+filters = {}
+filter_configs = [
+    ('사업부', '🏢 사업부'),
+    ('브랜드', '🏷️ 브랜드'),
+    ('캠퍼스', '🏫 캠퍼스')
+]
+
+for key, label in filter_configs:
+    if key in col_mapping and col_mapping[key] in df_clean.columns:
+        options = sorted([x for x in df_clean[col_mapping[key]].unique() if pd.notna(x)])
+        filters[key] = st.sidebar.multiselect(label, options, default=[], help="전체 또는 다중선택")
+
+# ==================== 타이틀 아래 필터 정보 표시 ====================
+# 간결한 형식: "25년 11월 중등 수아+더블랙 수내"
+filter_parts = [f"{selected_year % 100}년 {selected_month}월"]
+for key in ['사업부', '브랜드', '캠퍼스']:
+    if key in filters and filters[key]:
+        filter_parts.append(' + '.join(map(str, filters[key])))
+
+st.markdown(f"### {' '.join(filter_parts)}")
+
+# ==================== 메인 화면 ====================
+st.divider()
+
+# ==================== 1. 월별 매출 추세 ====================
+st.subheader("1️⃣ 월별 매출 추세")
+
+chart_data = []
+
+# 메인 연도 (1월~선택월)
+for m in range(1, selected_month + 1):
+    data = apply_filters(df_clean, selected_year, m, **filters)
+    chart_data.append({'월': m, '연도': f'{selected_year}년 (메인)', '매출': data[sales_col].sum() / 1000000})  # 백만원 단위
+
+# 비교 연도 (1~12월)
+for y in comparison_years:
+    for m in range(1, 13):
+        data = apply_filters(df_clean, y, m, **filters)
+        chart_data.append({'월': m, '연도': f'{y}년', '매출': data[sales_col].sum() / 1000000})  # 백만원 단위
+
+chart_df = pd.DataFrame(chart_data)
+
+if len(chart_df) > 0:
+    fig = px.line(chart_df, x='월', y='매출', color='연도', markers=True, title='월별 매출 추세 (단위: 백만원)')
+    fig.update_layout(
+        height=1000,
+        hovermode='x unified',
+        yaxis=dict(
+            tickformat=',.0f',
+            title='매출 (백만원)'
+        ),
+        xaxis=dict(
+            tickmode='linear',
+            tick0=1,
+            dtick=1,  # 1월부터 12월까지 모두 표시
+            range=[0.5, 12.5]
+        ),
+        legend=dict(
+            orientation='h',  # 가로 방향
+            yanchor='bottom',
+            y=1.02,  # 그래프 위쪽
+            xanchor='center',
+            x=0.5,
+            font=dict(size=50)  # 범례 글씨 크기
+        )
+    )
+    fig.update_traces(line=dict(width=5), marker=dict(size=10), hovertemplate='%{y:,.0f}백만원<extra></extra>')
+    st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
+
+# ==================== 2. 비교월 매출 비교 ====================
+st.subheader("2️⃣ 전월/월 매출 비교")
+
+# 구분 컬럼 값 생성 (추가 필터에서 선택된 값들)
+gubun_parts = []
+for key in ['사업부', '브랜드', '캠퍼스']:
+    if key in filters and filters[key]:
+        gubun_parts.extend(filters[key])
+gubun_subtitle = ' '.join(gubun_parts) if gubun_parts else ''
+
+# 서브타이틀 표시
+if gubun_subtitle:
+    st.markdown(f"**{gubun_subtitle}**")
+
+# 비교월 매출 (비교 월들의 합산)
+comp_months_str = ' + '.join([f'{m}월' for m in sorted(comparison_months)])
+
+# 선택 연도 기준으로 3개년 표 생성 (선택년, 선택년-1, 선택년-2)
+for i in range(3):
+    y = selected_year - i
+
+    # 해당 연도의 선택 월 매출 (각 표마다 다른 연도의 값)
+    main_sales_year = apply_filters(df_clean, y, selected_month, **filters)[sales_col].sum()
+
+    # 비교월이 12월이면 전년도 12월, 아니면 해당 연도의 비교월들
+    if comparison_months == [12]:
+        # 12월만 선택한 경우 전년도 12월
+        comp_sales = apply_filters(df_clean, y - 1, 12, **filters)[sales_col].sum()
+        comp_year_display = f"{(y-1) % 100}년"
+        comp_month_display = "12월"
+    else:
+        # 다른 월들의 합산
+        comp_sales = sum(
+            apply_filters(df_clean, y, m, **filters)[sales_col].sum()
+            for m in comparison_months
+        )
+        comp_year_display = f"{y % 100}년"
+        comp_month_display = comp_months_str
+
+    diff = main_sales_year - comp_sales
+    diff_pct = (diff / comp_sales * 100) if comp_sales > 0 else 0
+
+    # HTML 테이블 생성 (2줄 헤더) - 고정 너비 설정
+    html_table = '<table style="width: 100%; table-layout: fixed;"><thead>'
+    # 첫 번째 헤더 줄: ①, ②, ① - ②
+    html_table += '<tr>'
+    html_table += '<th rowspan="2" style="width: 10%;">년</th>'
+    html_table += '<th style="width: 20%;">①</th>'
+    html_table += '<th style="width: 20%;">②</th>'
+    html_table += '<th colspan="2" style="width: 50%;">① - ②</th>'
+    html_table += '</tr>'
+    # 두 번째 헤더 줄: 실제 월 정보
+    html_table += '<tr>'
+    html_table += f'<th>{selected_month}월</th>'
+    html_table += f'<th>{comp_month_display}</th>'
+    html_table += '<th style="width: 25%;">증감액</th>'
+    html_table += '<th style="width: 25%;">증감률</th>'
+    html_table += '</tr></thead><tbody>'
+
+    # 데이터 행
+    html_table += '<tr>'
+    html_table += f'<td>{y % 100}</td>'  # 년도
+    html_table += f'<td>{main_sales_year:,.0f}</td>'  # ① (원 단위)
+    html_table += f'<td>{comp_sales:,.0f}</td>'  # ② (원 단위)
+
+    # 증감액 (빨간색 표시)
+    diff_color = 'color: red;' if diff < 0 else ''
+    html_table += f'<td style="{diff_color}">{diff:+,.0f}</td>'
+
+    # 증감률 (빨간색 표시)
+    pct_color = 'color: red;' if diff_pct < 0 else ''
+    html_table += f'<td style="{pct_color}">{diff_pct:+.1f}%</td>'
+
+    html_table += '</tr></tbody></table>'
+    st.markdown(html_table, unsafe_allow_html=True)
+
+st.divider()
+
+# ==================== 3. 동기간 매출 비교 ====================
+st.subheader("3️⃣ 동기간 매출 비교")
+
+main_sales = apply_filters(df_clean, selected_year, selected_month, **filters)[sales_col].sum()
+
+for y in sorted(comparison_years, reverse=True):
+    comp_sales = apply_filters(df_clean, y, selected_month, **filters)[sales_col].sum()
+    diff = main_sales - comp_sales
+    diff_pct = (diff / comp_sales * 100) if comp_sales > 0 else 0
+
+    # 개별 표 생성
+    st.markdown(f"#### {selected_year % 100}년 vs {y % 100}년 {selected_month}월")
+
+    comparison_data = pd.DataFrame([{
+        f'{selected_year % 100}년': f'{main_sales:,.0f}원',
+        f'{y % 100}년': f'{comp_sales:,.0f}원',
+        '증감액': f'{diff:+,.0f}원',
+        '증감률': f'{diff_pct:+.1f}%'
+    }])
+
+    # HTML 테이블 생성 (CSS 스타일 적용)
+    html_table = '<table><thead><tr>'
+    for col in comparison_data.columns:
+        html_table += f'<th>{col}</th>'
+    html_table += '</tr></thead><tbody>'
+
+    for _, row in comparison_data.iterrows():
+        html_table += '<tr>'
+        for col in comparison_data.columns:
+            val = str(row[col])
+            color_style = 'color: red;' if (col in ['증감액', '증감률'] and (val.startswith('-') or val.startswith('−'))) else ''
+            html_table += f'<td style="{color_style}">{val}</td>'
+        html_table += '</tr>'
+
+    html_table += '</tbody></table>'
+    st.markdown(html_table, unsafe_allow_html=True)
+
+st.divider()
+
+# ==================== 4. 누적 매출 비교 ====================
+st.subheader("4️⃣ 누적 매출 비교")
+
+main_cum = apply_filters(df_clean, selected_year, selected_month, up_to_month=True, **filters)[sales_col].sum()
+
+# 그래프 데이터
+graph_data = [{'연도': f'{selected_year % 100}년', '누적매출': main_cum}]
+
+# 개별 표 생성
+for y in sorted(comparison_years, reverse=True):
+    comp_cum = apply_filters(df_clean, y, selected_month, up_to_month=True, **filters)[sales_col].sum()
+    diff = main_cum - comp_cum
+    diff_pct = (diff / comp_cum * 100) if comp_cum > 0 else 0
+
+    graph_data.append({'연도': f'{y % 100}년', '누적매출': comp_cum})
+
+    # 개별 표 생성
+    st.markdown(f"#### {selected_year % 100}년 ({selected_month}월까지 누적) vs {y % 100}년 ({selected_month}월까지 누적)")
+
+    comparison_data = pd.DataFrame([{
+        f'{selected_year % 100}년 누적': f'{main_cum:,.0f}원',
+        f'{y % 100}년 누적': f'{comp_cum:,.0f}원',
+        '증감액': f'{diff:+,.0f}원',
+        '증감률': f'{diff_pct:+.1f}%'
+    }])
+
+    # HTML 테이블 생성 (CSS 스타일 적용)
+    html_table = '<table><thead><tr>'
+    for col in comparison_data.columns:
+        html_table += f'<th>{col}</th>'
+    html_table += '</tr></thead><tbody>'
+
+    for _, row in comparison_data.iterrows():
+        html_table += '<tr>'
+        for col in comparison_data.columns:
+            val = str(row[col])
+            color_style = 'color: red;' if (col in ['증감액', '증감률'] and (val.startswith('-') or val.startswith('−'))) else ''
+            html_table += f'<td style="{color_style}">{val}</td>'
+        html_table += '</tr>'
+
+    html_table += '</tbody></table>'
+    st.markdown(html_table, unsafe_allow_html=True)
+
+# 누적 매출 그래프
+st.markdown("#### 📊 누적 매출 그래프")
+graph_df = pd.DataFrame(graph_data)
+
+# 백만원 단위로 변환
+graph_df['누적매출_백만'] = graph_df['누적매출'] / 1000000
+
+# 막대 그래프 생성
+fig = px.bar(graph_df, x='연도', y='누적매출_백만', text='누적매출_백만', color='누적매출_백만', color_continuous_scale='Blues')
+fig.update_traces(texttemplate='%{y:,.0f}백만원', textposition='outside', name='누적매출')
+
+# 꺾은선 그래프 추가
+import plotly.graph_objects as go
+fig.add_trace(go.Scatter(
+    x=graph_df['연도'],
+    y=graph_df['누적매출_백만'],
+    mode='lines+markers',
+    name='추세선',
+    line=dict(color='red', width=4),
+    marker=dict(size=12, color='red'),
+    yaxis='y'
+))
+
+fig.update_layout(
+    height=800,
+    showlegend=True,
+    legend=dict(
+        orientation='h',
+        yanchor='bottom',
+        y=1.02,
+        xanchor='center',
+        x=0.5,
+        font=dict(size=30)
+    ),
+    yaxis=dict(
+        tickformat=',.0f',
+        title='누적매출 (백만원)',
+        rangemode='tozero',  # 0부터 시작
+        dtick=1000  # 1000백만원(십억) 단위 간격
+    )
+)
+st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
+
+# ==================== 5. 추가 분석 ====================
+tab1, tab2, tab3, tab4 = st.tabs(["📊 카테고리별 (선택월)", "📊 카테고리별 (누적)", "📈 월별 상세", "📋 원본 데이터"])
+
+with tab1:
+    st.markdown(f"#### {selected_year}년 {selected_month}월 카테고리별 매출")
+    # 선택한 월만의 데이터
+    current_month_data = apply_filters(df_clean, selected_year, selected_month, up_to_month=False, **filters)
+
+    charts = []
+    for key, title, color in [('사업부', '사업부별', 'pie'), ('브랜드', '브랜드별', 'Blues'), ('캠퍼스', '캠퍼스별', 'Greens')]:
+        if key in col_mapping and col_mapping[key] in current_month_data.columns:
+            agg = current_month_data.groupby(col_mapping[key])[sales_col].sum().reset_index().sort_values(sales_col, ascending=False)
+            # 백만원 단위로 변환
+            agg[f'{sales_col}_백만'] = agg[sales_col] / 1000000
+            charts.append((key, title, agg, color))
+
+    cols = st.columns(3)
+    for i, (key, title, agg, color) in enumerate(charts[:3]):
+        with cols[i]:
+            if color == 'pie':
+                fig = px.pie(agg, values=f'{sales_col}_백만', names=col_mapping[key], title=f'{title} 매출 (백만원)')
+                fig.update_traces(texttemplate='%{value:,.0f}백만원')
+                fig.update_layout(height=800)
+            else:
+                fig = px.bar(agg, x=col_mapping[key], y=f'{sales_col}_백만', title=f'{title} 매출 (백만원)', color=f'{sales_col}_백만', color_continuous_scale=color)
+                fig.update_traces(texttemplate='%{y:,.0f}백만원', textposition='outside')
+                fig.update_layout(
+                    height=800,
+                    yaxis=dict(
+                        tickformat=',.0f',
+                        title='매출 (백만원)'
+                    )
+                )
+            st.plotly_chart(fig, use_container_width=True)
+
+with tab2:
+    st.markdown(f"#### {selected_year}년 1월~{selected_month}월 누적 카테고리별 매출")
+    # 누적 데이터
+    cumulative_data = apply_filters(df_clean, selected_year, selected_month, up_to_month=True, **filters)
+
+    charts_cum = []
+    for key, title, color in [('사업부', '사업부별', 'pie'), ('브랜드', '브랜드별', 'Blues'), ('캠퍼스', '캠퍼스별', 'Greens')]:
+        if key in col_mapping and col_mapping[key] in cumulative_data.columns:
+            agg = cumulative_data.groupby(col_mapping[key])[sales_col].sum().reset_index().sort_values(sales_col, ascending=False)
+            # 백만원 단위로 변환
+            agg[f'{sales_col}_백만'] = agg[sales_col] / 1000000
+            charts_cum.append((key, title, agg, color))
+
+    cols = st.columns(3)
+    for i, (key, title, agg, color) in enumerate(charts_cum[:3]):
+        with cols[i]:
+            if color == 'pie':
+                fig = px.pie(agg, values=f'{sales_col}_백만', names=col_mapping[key], title=f'{title} 매출 (백만원)')
+                fig.update_traces(texttemplate='%{value:,.0f}백만원')
+                fig.update_layout(height=800)
+            else:
+                fig = px.bar(agg, x=col_mapping[key], y=f'{sales_col}_백만', title=f'{title} 매출 (백만원)', color=f'{sales_col}_백만', color_continuous_scale=color)
+                fig.update_traces(texttemplate='%{y:,.0f}백만원', textposition='outside')
+                fig.update_layout(
+                    height=800,
+                    yaxis=dict(
+                        tickformat=',.0f',
+                        title='매출 (백만원)'
+                    )
+                )
+            st.plotly_chart(fig, use_container_width=True)
+
+with tab3:
+    monthly_detail = []
+    for m in range(1, selected_month + 1):
+        row = {'월': f'{m}월', f'{selected_year}년': apply_filters(df_clean, selected_year, m, **filters)[sales_col].sum()}
+        for y in sorted(comparison_years, reverse=True):
+            row[f'{y}년'] = apply_filters(df_clean, y, m, **filters)[sales_col].sum()
+        monthly_detail.append(row)
+
+    detail_df = pd.DataFrame(monthly_detail)
+    for col in detail_df.columns:
+        if col != '월':
+            detail_df[col] = detail_df[col].apply(lambda x: f'{x:,.0f}')
+
+    st.markdown("#### 📋 월별 매출 상세 (원)")
+    st.dataframe(detail_df, use_container_width=True, hide_index=True)
+
+with tab4:
+    data = apply_filters(df_clean, selected_year, selected_month, up_to_month=True, **filters)
+    st.dataframe(data, use_container_width=True, height=400)
+
+    csv = data.to_csv(index=False, encoding='utf-8-sig')
+    st.download_button(
+        "📥 CSV 다운로드",
+        csv,
+        f"매출_{selected_year}_{selected_month}_{datetime.now().strftime('%Y%m%d')}.csv",
+        "text/csv"
+    )
+
+st.divider()
+st.caption(f"📊 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
