@@ -8,7 +8,8 @@
       "Bash(git --version)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: 매출 대시보드\n\n- Streamlit 기반 매출 분석 대시보드\n- AI 기반 매출 현황 분석\n- 월별/누적 매출 비교 기능\n- 카테고리별 매출 분석\n- 인터랙티브 차트 및 그래프\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: 매출 대시보드\n\n- Streamlit 기반 매출 분석 대시보드\n- AI 기반 매출 현황 분석\n- 월별/누적 매출 비교 기능\n- 카테고리별 매출 분석\n- 인터랙티브 차트 및 그래프\nEOF\n\\)\")",
+      "Bash(git config:*)"
     ]
   }
 }
